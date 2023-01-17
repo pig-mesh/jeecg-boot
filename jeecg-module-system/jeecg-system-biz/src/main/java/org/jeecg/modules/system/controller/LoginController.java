@@ -1,12 +1,16 @@
 package org.jeecg.modules.system.controller;
 
+import cn.hutool.core.codec.Base64;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import com.alibaba.fastjson.JSONObject;
 import com.aliyuncs.exceptions.ClientException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
+import io.swagger.util.Json;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.SecurityUtils;
 import org.jeecg.common.api.vo.Result;
@@ -29,7 +33,10 @@ import org.jeecg.modules.system.service.impl.SysBaseApiImpl;
 import org.jeecg.modules.system.util.RandImageUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -134,6 +141,40 @@ public class LoginController {
         //update-end--Author:wangshuai  Date:20200714  for：登录日志没有记录人员
 		return result;
 	}
+
+	@RequestMapping(value = "/loginByCode", method = RequestMethod.POST)
+	public Result<JSONObject> loginByCode(@RequestParam("code") String code){
+		Result<JSONObject> result = new Result<JSONObject>();
+
+		// code 获取信息
+		String body = getAccessToken(code);
+
+		String token = JSONObject.parseObject(body).getString("access_token");
+
+		String ssoUser = getSsoUser(token);
+		JSONObject user = JSONObject.parseObject(ssoUser).getJSONObject("data").getJSONObject("sysUser");
+
+		String username = user.getString("username");
+
+		LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<>();
+		queryWrapper.eq(SysUser::getUsername,username);
+		SysUser sysUser = sysUserService.getOne(queryWrapper);
+		//update-end-author:wangshuai date:20200601 for: 登录代码验证用户是否注销bug，if条件永远为false
+		result = sysUserService.checkUserIsEffective(sysUser);
+		if(!result.isSuccess()) {
+			return result;
+		}
+		//用户登录信息
+		userInfo(sysUser, result);
+		//update-begin--Author:liusq  Date:20210126  for：登录成功，删除redis中的验证码
+		//update-begin--Author:liusq  Date:20210126  for：登录成功，删除redis中的验证码
+		LoginUser loginUser = new LoginUser();
+		BeanUtils.copyProperties(sysUser, loginUser);
+		baseCommonService.addLog("用户名: " + username + ",登录成功！", CommonConstant.LOG_TYPE_1, null,loginUser);
+		//update-end--Author:wangshuai  Date:20200714  for：登录日志没有记录人员
+		return result;
+	}
+
 
 
 	/**
@@ -669,6 +710,56 @@ public class LoginController {
 			result.put("token", "-1");
 		}
 		return Result.OK(result);
+	}
+
+
+	public String getAccessToken(String code) {
+		Map<String, String> stringStringMap = buildRequestHeader();
+
+		try {
+			Environment environment = SpringContextUtils.getBean(Environment.class);
+			Map<String, Object> map = new HashMap<>();
+			map.put("grant_type", "authorization_code");
+			map.put("scope", environment.getProperty("sso.scope"));
+			map.put("code", code);
+
+			String callback = environment.getProperty("sso.callback-url");
+			String auth = environment.getProperty("sso.gateway-server");
+			map.put("redirect_uri", callback);
+			HttpResponse execute = HttpRequest.post(auth + "/auth/oauth2/token")
+					.headerMap(stringStringMap, true)
+					.form(map)
+					.execute();
+			return execute.body();
+		} catch (Exception e) {
+			throw new RuntimeException(e.getMessage());
+		}
+	}
+
+	private Map<String, String> buildRequestHeader() {
+		HashMap<String, String> objectObjectHashMap = new HashMap<>();
+		Environment environment = SpringContextUtils.getBean(Environment.class);
+		String clientId = environment.getProperty("sso.client-id");
+		String clientSecret = environment.getProperty("sso.client-secret");
+
+		final String basicAuthorization = String.format("%s:%s", clientId, clientSecret);
+
+		HttpHeaders headers = new HttpHeaders();
+
+		String encodeToString = Base64.encode(basicAuthorization.getBytes());
+		objectObjectHashMap.put(HttpHeaders.AUTHORIZATION, "Basic " + encodeToString);
+		objectObjectHashMap.put(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
+		return objectObjectHashMap;
+	}
+
+	private String getSsoUser(String accessToken) {
+		Environment environment = SpringContextUtils.getBean(Environment.class);
+		String auth = environment.getProperty("sso.gateway-server");
+		HttpResponse execute = HttpRequest.get(auth + "/admin/user/info")
+				.header("Authorization","Bearer "+accessToken)
+				.execute();
+		return execute.body();
+
 	}
 
 }
