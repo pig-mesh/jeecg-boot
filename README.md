@@ -1,7 +1,7 @@
 ## pig 整合前后端分离项目登录
 
 
-![](https://minio.pigx.vip/alei/2023/01/5331045f8c867c6ae6c4e62aa6434850.png)
+![](https://minio.pigx.vip/alei/2023/01/a073deb5969c26e2e59f7c9327b9fa41.png)
 
 ```sql
 INSERT INTO `pig`.`sys_oauth_client_details`(`client_id`, `resource_ids`, `client_secret`, `scope`, `authorized_grant_types`, `web_server_redirect_uri`, `authorities`, `access_token_validity`, `refresh_token_validity`, `additional_information`, `autoapprove`, `create_time`, `update_time`, `create_by`, `update_by`) VALUES ('jeecg-boot', '', 'jeecg-boot', 'server', 'authorization_code', 'http://127.0.0.1:3100/sso', '', 168000000, 168000000, '', 'false', '2023-01-17 08:31:46', '2023-01-17 09:32:06', 'admin', 'admin');
@@ -13,7 +13,7 @@ INSERT INTO `pig`.`sys_oauth_client_details`(`client_id`, `resource_ids`, `clien
 > 配置  PIG 网关地址
 
 - 增加sso的配置
-  ![](https://minio.pigx.vip/alei/2023/01/eb241f5b203e21d5cb762f8886359f21.png)
+  ![](https://minio.pigx.vip/alei/2023/01/841f482b05aa263356b941a5301b0f5c.png)
 
 - 增加一个登录
   ![](https://minio.pigx.vip/alei/2023/01/d479312b9c2ab8569b19fd8f84d7d6fa.png)
